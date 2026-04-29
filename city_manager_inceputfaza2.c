@@ -166,66 +166,7 @@ static Report read_report_interactive(const char *inspector_name) {
     else clear_stdin();
     return r;
 }
-//////////////////////////////////
-//SCHIMBARI
 
-////////
-
-////////////
-
-/* FAZA 2: notifica monitorul */
-static void notify_monitor(const char *district, Role role, const char *user) {
-    
-    // 1. Deschidem fisierul in care monitorul si-a salvat PID-ul, in mod "doar citire" (O_RDONLY)
-    int fd = open(PID_FILE, O_RDONLY);
-    if (fd == -1) {
-        // Daca fisierul nu poate fi deschis (probabil monitorul nu este pornit), 
-        // inregistram eroarea in log si oprim executia functiei (fail-fast)
-        add_log(district, role, user,
-            "add - MONITOR: nu a putut fi notificat (fisier .monitor_pid inexistent)");
-        return;
-    }
-
-    // 2. Pregatim un buffer pentru a citi PID-ul. Il umplem cu zerouri ca sa fim siguri ca e curat.
-    char buf[32]; 
-    memset(buf, 0, sizeof(buf));
-    
-    // Citim datele din fisier in buffer. Folosim sizeof(buf) - 1 pentru a asigura terminatorul de sir '\0'
-    ssize_t n = read(fd, buf, sizeof(buf) - 1);
-    
-    // Inchidem fisierul imediat dupa citire pentru a nu tine resursele sistemului ocupate
-    close(fd);
-    
-    // 3. Verificam daca functia read a dat eroare (-1) sau daca fisierul era gol (0)
-    if (n <= 0) {
-        add_log(district, role, user,
-            "add - MONITOR: nu a putut fi notificat (PID invalid)");
-        return;
-    }
-
-    // 4. Transformam sirul de caractere citit (ex: "1234") intr-un numar intreg (PID-ul propriu-zis)
-    pid_t monitor_pid = (pid_t)atoi(buf);
-    
-    // In Linux, ID-ul unui proces trebuie sa fie strict mai mare decat 0. Verificam daca numarul e valid.
-    if (monitor_pid <= 0) {
-        add_log(district, role, user,
-            "add - MONITOR: nu a putut fi notificat (PID invalid)");
-        return;
-    }
-
-    // 5. Trimitem semnalul SIGUSR1 catre procesul monitor folosind functia kill().
-    // Atentie: kill() aici doar trimite semnalul, nu "omoara" procesul.
-    // Daca returneaza -1, procesul monitor probabil s-a inchis intre timp.
-    if (kill(monitor_pid, SIGUSR1) == -1) {
-        add_log(district, role, user,
-            "add - MONITOR: nu a putut fi notificat (kill() a esuat)");
-        return;
-    }
-
-    // 6. Daca nu s-a declansat niciun return de mai sus, inseamna ca notificarea a functionat perfect.
-    add_log(district, role, user, "add - MONITOR: notificat cu succes prin SIGUSR1");
-    printf("Monitor notificat (PID=%d).\n", (int)monitor_pid);
-}
 
 int op_add(const char *district, Role role, const char *user) {
     if (init_district(district, role, user) != 0) return -1;
